@@ -1,0 +1,165 @@
+try:
+    import tkinter
+except ImportError:
+    import Tkinter as tkinter
+
+import os
+from tkinter import messagebox
+
+
+def showFiles():
+    global filePathEntryWidget
+
+    fileList.delete(0,tkinter.END)
+    file_path_string = str(filePathEntryWidget.get())
+
+    if file_path_string == '':
+        #TODO add message box saying you need to specify dir
+        messagebox.showerror('Error', 'Please specify directory.')
+    else:
+        try:
+            for zone in os.listdir(file_path_string):
+                fileList.insert(tkinter.END, zone)
+        except FileNotFoundError:
+            #TODO
+            messagebox.showerror('Error', 'Folder not found.')
+
+
+# TODO: Build out function to import the data, and then have message box pop up confirming
+def importData():
+    global dataImported
+
+    dataImported = True
+    try:
+        dataFileName = fileList.get(fileList.curselection())
+        tempLabel = tkinter.Label(mainWindow, text='Using ' + dataFileName + ' for training')
+        tempLabel.grid(row=6, column=0, columnspan=3, sticky='w')
+    except:
+        print('Error')
+        messagebox.showerror('Error', 'No file is selected')
+
+
+
+def modelSelect():
+    global modelValue
+
+    if modelValue.get() == 1:
+        nnFrame.grid_remove()
+    elif modelValue.get() == 2:
+        nnFrame.grid()
+    elif modelValue.get() == 3:
+        nnFrame.grid_remove()
+
+
+def trainData():
+    global modelValue
+    if dataImported == False:
+        messagebox.showerror('Error', 'Please import data first.')
+    numFeatures = numFeaturesEntry.get()
+
+    if modelValue.get() == 1:
+        print(numFeatures)
+    elif modelValue.get() == 2:
+        print(numFeatures)
+        print(numLayersEntry.get())
+        print(numNodesEntry.get())
+    elif modelValue.get() == 3:
+        print(numFeatures)
+
+    print('data has been trained')
+
+
+def closeApp():
+    mainWindow.quit()
+
+# Creating main window
+mainWindow = tkinter.Tk()
+mainWindow.title('AI ML Applet')
+mainWindow.geometry('750x400')
+mainWindow['padx'] = 10
+mainWindow.wm_minsize(750, 400)
+mainWindow.wm_maxsize(750, 400)
+mainWindow.config()
+
+introLabel = tkinter.Label(mainWindow, text='Welcome to ML Applet\nSelect your data file:')
+introLabel.grid(row=0, column=0, columnspan=2, rowspan=2)
+
+# Creating file view with Listbox
+fileList = tkinter.Listbox(mainWindow)
+fileList.grid(row=2, column=0, sticky='nswe', rowspan=2, columnspan=2)
+fileList.config(border=2, relief='sunken')
+
+# Setting up scroll bar
+listScroll = tkinter.Scrollbar(mainWindow, orient=tkinter.VERTICAL, command=fileList.yview)
+listScroll.grid(row=2, column=2, sticky='nsw', rowspan=2)
+
+# Getting file path from user
+pathLabel = tkinter.Label(mainWindow, text='Filepath:\ni.e. /usr/bin')
+pathLabel.grid(row=4, column=0, sticky='w')
+
+# Entry to get filepath string
+# TODO: Eventually change this so they just click button and directory pops up
+filePathEntryWidget = tkinter.Entry(mainWindow)
+filePathEntryWidget.grid(row=4, column=1)
+
+# Button that loads the files into the filelist
+filePathLoad = tkinter.Button(mainWindow, text='Load Directory', command=showFiles)
+filePathLoad.grid(row=5, column=0, sticky='ew')
+
+# Button imports the data from selected file
+importDataButton = tkinter.Button(mainWindow, text='Import Data', command=importData)
+importDataButton.grid(row=5, column=1, sticky='ew')
+dataImported = False
+# Get number of dependent variables from user
+mainWindow.rowconfigure(6, minsize=50)
+
+numFeaturesLabel = tkinter.Label(mainWindow, text='Number of Features')
+numFeaturesLabel.grid(row=7, column=0, sticky='w')
+
+numFeaturesEntry = tkinter.Entry(mainWindow)
+numFeaturesEntry.grid(row=7, column=1, sticky='ew')
+
+
+# Radio Buttons for Selecting Model
+mainWindow.columnconfigure(3, minsize=60)
+modelLabel = tkinter.Label(mainWindow, text='Select Model')
+modelLabel.grid(row=2, column=4, sticky='e')
+
+# modelValue value 1 = regression, value 2 = classification
+mainWindow.columnconfigure(5, minsize=40)
+modelValue = tkinter.IntVar()
+modelValue.set(1)
+
+modelFrame = tkinter.LabelFrame(mainWindow, text='Models')
+modelFrame.grid(row=2, column=6, sticky='nswe', rowspan=2)
+
+radio1 = tkinter.Radiobutton(modelFrame, text='Regression', value=1, variable=modelValue, command=modelSelect)
+radio2 = tkinter.Radiobutton(modelFrame, text='NN Classification', value=2, variable=modelValue, command=modelSelect)
+radio3 = tkinter.Radiobutton(modelFrame, text='kNN', value=3, variable=modelValue, command=modelSelect)
+radio1.grid(row=0, column=0, sticky='w')
+radio2.grid(row=1, column=0, sticky='w')
+radio3.grid(row=2, column=0, sticky='w')
+
+# Frame and Fields for classification data
+nnFrame = tkinter.Frame(mainWindow)
+nnFrame.grid(row=5, column=4, rowspan=2, columnspan=3, sticky='nswe')
+
+numLayersLabel = tkinter.Label(nnFrame, text='Number of Layers')
+numNodesLabel = tkinter.Label(nnFrame, text='Number of Nodes\nper Layer')
+numLayersLabel.grid(row=0, column=0, sticky='w')
+numNodesLabel.grid(row=1, column=0, sticky='w')
+
+numLayersEntry = tkinter.Entry(nnFrame)
+numNodesEntry = tkinter.Entry(nnFrame)
+numLayersEntry.grid(row=0, column=1)
+numNodesEntry.grid(row=1, column=1)
+nnFrame.grid_remove()
+
+
+
+# Train Data/Exit Buttons
+trainButton = tkinter.Button(mainWindow, text='Train Data', command=trainData)
+
+trainButton.grid(row=7, column=4, columnspan=3, sticky='ewns')
+
+mainWindow.mainloop()
