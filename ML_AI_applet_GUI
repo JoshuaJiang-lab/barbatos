@@ -1,61 +1,90 @@
+from decimal import Decimal
+from matplotlib.colors import ListedColormap
+import matplotlib.pyplot as plt
+
 try:
     import tkinter
 except ImportError:
     import Tkinter as tkinter
 
-import os
 from tkinter import messagebox
+import os
+import pandas as pd
+
+from sklearn.linear_model import Perceptron
+from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import LabelEncoder
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score
+import numpy as np
 
 
 def showFiles():
     global filePathEntryWidget
 
-    fileList.delete(0,tkinter.END)
+    fileList.delete(0, tkinter.END)
     file_path_string = str(filePathEntryWidget.get())
 
     if file_path_string == '':
-        #TODO add message box saying you need to specify dir
+        # TODO add message box saying you need to specify dir
         messagebox.showerror('Error', 'Please specify directory.')
     else:
         try:
             for zone in os.listdir(file_path_string):
                 fileList.insert(tkinter.END, zone)
         except FileNotFoundError:
-            #TODO
+            # TODO
             messagebox.showerror('Error', 'Folder not found.')
 
 
 # TODO: Build out function to import the data, and then have message box pop up confirming
 def importData():
     global dataImported
+    global rawData
 
     dataImported = True
     try:
         dataFileName = fileList.get(fileList.curselection())
         tempLabel = tkinter.Label(mainWindow, text='Using ' + dataFileName + ' for training')
         tempLabel.grid(row=6, column=0, columnspan=3, sticky='w')
+        rawData = dataFileName
     except:
         print('Error')
         messagebox.showerror('Error', 'No file is selected')
 
 
-
 def modelSelect():
     global modelValue
 
-    if modelValue.get() == 1:
+    if modelValue.get() == 1 or modelValue.get() == 3:
         nnFrame.grid_remove()
     elif modelValue.get() == 2:
         nnFrame.grid()
-    elif modelValue.get() == 3:
-        nnFrame.grid_remove()
+        numNodesLabel.grid()
+        numLayersLabel.grid()
+        numNodesEntry.grid()
+        numLayersEntry.grid()
+    elif modelValue.get() == 4:
+        nnFrame.grid()
+        numNodesLabel.grid_remove()
+        numLayersLabel.grid_remove()
+        numNodesEntry.grid_remove()
+        numLayersEntry.grid_remove()
 
 
 def trainData():
     global modelValue
+    global classLabelLoc
+    global classLabelLocEntry
+    global learningRate
+    global epochs
+
+    classLabelLoc = int(classLabelLocEntry.get())
+    learningRate = Decimal(learningRateEntry.get())
+    epochs = int(numEpochsEntry.get())
+
     if dataImported == False:
         messagebox.showerror('Error', 'Please import data first.')
-    numFeatures = numFeaturesEntry.get()
 
     if modelValue.get() == 1:
         print(numFeatures)
@@ -65,20 +94,103 @@ def trainData():
         print(numNodesEntry.get())
     elif modelValue.get() == 3:
         print(numFeatures)
+    elif modelValue.get() == 4:
+        trainPerceptron(labelLoc=classLabelLoc, eta=learningRate, n_iter=epochs)
 
+    print(epochs)
+    print(learningRate)
     print('data has been trained')
+
+
+def trainPerceptron(labelLoc=1, eta=0.01, n_iter=50):
+    global filePathEntryWidget
+
+    print("eta " + str(eta))
+
+    import_path = filePathEntryWidget.get() + '/' + rawData
+
+    dataframe = pd.read_csv(import_path)
+    label_encoder = LabelEncoder()
+
+    X = dataframe.iloc[:, :labelLoc - 1].values
+    y = label_encoder.fit_transform(dataframe.iloc[:, labelLoc])
+
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, stratify=y)
+    sc = StandardScaler()
+    sc.fit(X_train)
+    X_train_std = sc.transform(X_train)
+    X_test_std = sc.transform(X_test)
+
+    ppn = Perceptron(max_iter=n_iter, eta0=eta)
+    ppn.fit(X_train_std, y_train)
+    y_pred = ppn.predict(X_test_std)
+
+    temp_X = temporary_data_for_plotting(X)
+    temp_X_train, temp_X_test, temp_y_train, temp_y_test = train_test_split(temp_X, y, test_size=0.3, stratify=y)
+    sc = StandardScaler()
+    sc.fit(temp_X_train)
+    temp_X_train_std = sc.transform(temp_X_train)
+    temp_X_test_std = sc.transform(temp_X_test)
+
+    temp_ppn = Perceptron(max_iter=n_iter, eta0=eta)
+    temp_ppn.fit(temp_X_train_std, temp_y_train)
+
+    X_combined_std = np.vstack((temp_X_train_std, temp_X_test_std))
+    y_combined = np.hstack((temp_y_train, temp_y_test))
+    plot_decision_regions(X=X_combined_std, y=y_combined, classifier=temp_ppn,
+                          test_idx=range(X_combined_std.shape[0] - temp_X_test_std.shape[0], X_combined_std.shape[0]))
+    plt.legend(loc='upper left')
+    plt.show()
+
+    messagebox.showinfo('Test Info', 'Accuracy: %.2f' % accuracy_score(y_test, y_pred))
+
+def temporary_data_for_plotting(X):
+    X = X[:, [0, 1]]
+    return X
+
+
+def plot_decision_regions(X, y, classifier, test_idx=None, resolution=0.02):
+    markers = ('s', 'x', 'o', '^', 'v')
+    colors = ('blue', 'red', 'green', 'cyan', 'gray')
+    cmap = ListedColormap(colors[:len(np.unique(y))])
+
+    x1_min, x1_max = X[:, 0].min() - 1, X[:, 0].max() + 1
+    x2_min, x2_max = X[:, 1].min() - 1, X[:, 1].max() + 1
+
+    xx1, xx2 = np.meshgrid(np.arange(x1_min, x1_max, resolution), np.arange(x2_min, x2_max, resolution))
+    z = classifier.predict(np.array([xx1.ravel(), xx2.ravel()]).T)
+    z = z.reshape(xx1.shape)
+    plt.contourf(xx1, xx2, z, alpha=0.3, cmap=cmap)
+    plt.xlim(xx1.min(), xx1.max())
+    plt.ylim(xx2.min(), xx2.max())
+
+    for idx, cl in enumerate(np.unique(y)):
+        plt.scatter(x=X[y == cl, 0], y=X[y == cl, 1], alpha=0.8, c=colors[idx], marker=markers[idx], label=cl,
+                    edgecolor='black')
+
+    if test_idx:
+        X_test, y_test = X[test_idx, :], y[test_idx]
+        plt.scatter(X_test[:, 0], X_test[:, 1], c='', edgecolor='black', alpha=1.0, linewidth=1, marker='o', s=100,
+                    label='Test Set')
 
 
 def closeApp():
     mainWindow.quit()
+
+
+# Initializing training data variables
+rawData = ''
+classLabelLoc = int()
+learningRate = 0.01
+epochs = 50
 
 # Creating main window
 mainWindow = tkinter.Tk()
 mainWindow.title('AI ML Applet')
 mainWindow.geometry('750x400')
 mainWindow['padx'] = 10
-mainWindow.wm_minsize(750, 400)
-mainWindow.wm_maxsize(750, 400)
+mainWindow.wm_minsize(800, 430)
+mainWindow.wm_maxsize(800, 430)
 mainWindow.config()
 
 introLabel = tkinter.Label(mainWindow, text='Welcome to ML Applet\nSelect your data file:')
@@ -112,13 +224,13 @@ importDataButton.grid(row=5, column=1, sticky='ew')
 dataImported = False
 # Get number of dependent variables from user
 mainWindow.rowconfigure(6, minsize=50)
+mainWindow.rowconfigure(8, minsize=20)
 
-numFeaturesLabel = tkinter.Label(mainWindow, text='Number of Features')
-numFeaturesLabel.grid(row=7, column=0, sticky='w')
+classLabelLocLabel = tkinter.Label(mainWindow, text='Number of Features\nLabels must be in last column')
+classLabelLocLabel.grid(row=9, column=0, sticky='w')
 
-numFeaturesEntry = tkinter.Entry(mainWindow)
-numFeaturesEntry.grid(row=7, column=1, sticky='ew')
-
+classLabelLocEntry = tkinter.Entry(mainWindow)
+classLabelLocEntry.grid(row=9, column=1, sticky='ew')
 
 # Radio Buttons for Selecting Model
 mainWindow.columnconfigure(3, minsize=60)
@@ -136,30 +248,38 @@ modelFrame.grid(row=2, column=6, sticky='nswe', rowspan=2)
 radio1 = tkinter.Radiobutton(modelFrame, text='Regression', value=1, variable=modelValue, command=modelSelect)
 radio2 = tkinter.Radiobutton(modelFrame, text='NN Classification', value=2, variable=modelValue, command=modelSelect)
 radio3 = tkinter.Radiobutton(modelFrame, text='kNN', value=3, variable=modelValue, command=modelSelect)
+radio4 = tkinter.Radiobutton(modelFrame, text='Perceptron', value=4, variable=modelValue, command=modelSelect)
 radio1.grid(row=0, column=0, sticky='w')
 radio2.grid(row=1, column=0, sticky='w')
 radio3.grid(row=2, column=0, sticky='w')
+radio4.grid(row=3, column=0, sticky='w')
 
 # Frame and Fields for classification data
 nnFrame = tkinter.Frame(mainWindow)
-nnFrame.grid(row=5, column=4, rowspan=2, columnspan=3, sticky='nswe')
+nnFrame.grid(row=4, column=4, rowspan=4, columnspan=3, sticky='nswe')
 
+learningRateLabel = tkinter.Label(nnFrame, text='Learning Rate\nBetween 0 and 1')
 numLayersLabel = tkinter.Label(nnFrame, text='Number of Layers')
 numNodesLabel = tkinter.Label(nnFrame, text='Number of Nodes\nper Layer')
-numLayersLabel.grid(row=0, column=0, sticky='w')
-numNodesLabel.grid(row=1, column=0, sticky='w')
+numEpochs = tkinter.Label(nnFrame, text='Number of Epochs')
+learningRateLabel.grid(row=0, column=0, sticky='w')
+numLayersLabel.grid(row=1, column=0, sticky='w')
+numNodesLabel.grid(row=2, column=0, sticky='w')
+numEpochs.grid(row=3, column=0, sticky='w')
 
+learningRateEntry = tkinter.Entry(nnFrame)
+numEpochsEntry = tkinter.Entry(nnFrame)
 numLayersEntry = tkinter.Entry(nnFrame)
 numNodesEntry = tkinter.Entry(nnFrame)
-numLayersEntry.grid(row=0, column=1)
-numNodesEntry.grid(row=1, column=1)
+learningRateEntry.grid(row=0, column=1)
+numEpochsEntry.grid(row=3, column=1)
+numLayersEntry.grid(row=1, column=1)
+numNodesEntry.grid(row=2, column=1)
 nnFrame.grid_remove()
-
-
 
 # Train Data/Exit Buttons
 trainButton = tkinter.Button(mainWindow, text='Train Data', command=trainData)
 
-trainButton.grid(row=7, column=4, columnspan=3, sticky='ewns')
+trainButton.grid(row=9, column=4, columnspan=3, sticky='ewns')
 
 mainWindow.mainloop()
